@@ -1,0 +1,25 @@
+server:
+  port: 8081
+spring:
+  application:
+    name: song-service
+  config:
+    import: "optional:configserver:http://config-server:8888"
+  datasource:
+    url: ${SONG_SERVICE_SPRING_DATASOURCE_URL:jdbc:h2:mem:testdb}
+    driverClassName: ${SONG_SERVICE_SPRING_DATASOURCE_DRIVER_CLASS:org.h2.Driver}
+    username: ${SONG_SERVICE_SPRING_DATASOURCE_USERNAME:sa}
+    password: ${SONG_SERVICE_SPRING_DATASOURCE_PASSWORD:password}
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: ${SONG_SERVICE_HIBERNATE_DIALECT:org.hibernate.dialect.H2Dialect}
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    hostname: localhost
+    prefer-ip-address: true
