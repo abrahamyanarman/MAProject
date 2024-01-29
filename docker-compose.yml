@@ -1,0 +1,137 @@
+version: '3.9'
+services:
+  localstack:
+    container_name: "${LOCALSTACK_DOCKER_NAME:-localstack-main}"
+    image: localstack/localstack
+    ports:
+      - "127.0.0.1:4566:4566"            # LocalStack Gateway
+      - "127.0.0.1:4510-4559:4510-4559"  # external services port range
+    environment:
+      # LocalStack configuration: https://docs.localstack.cloud/references/configuration/
+      - DEBUG=${DEBUG:-0}
+    volumes:
+      - "${LOCALSTACK_VOLUME_DIR:-./volume}:/var/lib/localstack"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    networks:
+      - masp
+  config-server:
+    build:
+      context: ./config-server
+      dockerfile: Dockerfile
+    networks:
+      - masp
+    env_file:
+      - ./config-server/config-server.env
+    ports:
+      - "8888:8888"
+    healthcheck:
+      test: "curl --fail --silent localhost:8888/actuator/health/readiness | grep UP || exit 1"
+      interval: 4s
+      timeout: 10s
+      retries: 10
+      start_period: 2s
+#  postgress-song-service-db:
+#    image: postgres:latest
+#    env_file:
+#      - ./postgress-song-service-db.env
+#    networks:
+#      - masp
+#    volumes:
+#      - ./song-service/scripts/schema.sql:/docker-entrypoint-initdb.d/1_schema.sql
+#      - ./song-service/scripts/data.sql:/docker-entrypoint-initdb.d/2_data.sql
+#    ports:
+#      - "5432:5432"
+  postgress-resource-service-db:
+    image: postgres:latest
+    env_file:
+      - ./postgress-resource-service-db.env
+    networks:
+      - masp
+    volumes:
+      - ./resource-service/scripts/schema.sql:/docker-entrypoint-initdb.d/1_schema.sql
+      - ./resource-service/scripts/data.sql:/docker-entrypoint-initdb.d/2_data.sql
+    ports:
+      - "5433:5432"
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    networks:
+      - masp
+    env_file:
+      - ./api-gateway/api-gateway.env
+    ports:
+      - "8080:8080"
+    depends_on:
+      config-server:
+        condition: service_healthy
+    healthcheck:
+      test: "curl --fail --silent localhost:8080/actuator/health/readiness | grep UP || exit 1"
+      interval: 2s
+      timeout: 3s
+      retries: 5
+      start_period: 2s
+  eureka-server:
+    build:
+      context: ./eureka-server
+      dockerfile: Dockerfile
+    env_file:
+      - ./eureka-server/eureka-server.env
+    networks:
+      - masp
+    ports:
+      - "8761:8761"
+    depends_on:
+      config-server:
+        condition: service_healthy
+    healthcheck:
+      test: "curl --fail --silent localhost:8761/actuator/health/readiness | grep UP || exit 1"
+      interval: 2s
+      timeout: 3s
+      retries: 5
+      start_period: 2s
+#  song-service:
+#    build:
+#      context: ./song-service
+#      dockerfile: Dockerfile
+#    env_file:
+#      - ./song-service/song-service.env
+#    networks:
+#      - masp
+#    ports:
+#      - "8081:8081"
+#    healthcheck:
+#      test: "curl --fail --silent localhost:8081/actuator/health/readiness | grep UP || exit 1"
+#      interval: 2s
+#      timeout: 3s
+#      retries: 5
+#      start_period: 2s
+#    depends_on:
+#      config-server:
+#        condition: service_healthy
+#      postgress-song-service-db:
+#        condition: service_started
+  resource-service:
+    build:
+      context: ./resource-service
+      dockerfile: Dockerfile
+    networks:
+      - masp
+    ports:
+      - "8082:8082"
+    healthcheck:
+      test: "curl --fail --silent localhost:8082/actuator/health/readiness | grep UP || exit 1"
+      interval: 2s
+      timeout: 3s
+      retries: 5
+      start_period: 2s
+    depends_on:
+      config-server:
+        condition: service_healthy
+#      postgress-song-service-db:
+#        condition: service_started
+    env_file:
+      - ./resource-service/resource-service.env
+networks:
+  masp:
+    

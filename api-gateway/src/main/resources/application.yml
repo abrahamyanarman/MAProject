@@ -1,0 +1,31 @@
+server:
+  port: 8080
+eureka:
+  client:
+    register-with-eureka: false
+    fetch-registry: true
+    server-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    hostname: localhost
+    prefer-ip-address: true
+
+spring:
+  application:
+    name: api-gateway
+  config:
+    import: "optional:configserver:http://config-server:8888"
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "health,refresh"
+  health:
+    readiness-state:
+      enabled: true
+    liveness-state:
+      enabled: true
+  endpoint:
+    health:
+      probes:
+        enabled: true

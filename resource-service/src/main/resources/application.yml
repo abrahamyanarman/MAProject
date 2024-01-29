@@ -1,0 +1,42 @@
+server:
+  port: 8082
+spring:
+  application:
+    name: resource-service
+  config:
+    import: "optional:configserver:http://config-server:8888"
+  datasource:
+    url: ${RESOURCE_SERVICE_SPRING_DATASOURCE_URL:jdbc:h2:mem:testdb}
+    driverClassName: ${RESOURCE_SERVICE_SPRING_DATASOURCE_DRIVER_CLASS:org.h2.Driver}
+    username: ${RESOURCE_SERVICE_SPRING_DATASOURCE_USERNAME:sa}
+    password: ${RESOURCE_SERVICE_SPRING_DATASOURCE_PASSWORD:password}
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: ${RESOURCE_SERVICE_HIBERNATE_DIALECT:org.hibernate.dialect.H2Dialect}
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    hostname: localhost
+    prefer-ip-address: true
+
+cloud:
+  aws:
+    credentials:
+      accessKey: test
+      secretKey: test
+    region:
+      static: us-east-1
+    stack:
+      auto: false #need to check if we really need it
+    s3:
+      endpoint: localstack:4566
