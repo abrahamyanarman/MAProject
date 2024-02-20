@@ -8,9 +8,10 @@ public class S3Utils {
         return "https://" + bucketName + ".s3." + region + ".amazonaws.com/" + key;
     }
     public static Map<String, String> deconstructS3Location(String location) {
-        String bucketName = location.substring(location.indexOf("//"), location.indexOf(".s3"));
-        String region = location.substring(location.indexOf("s3."), location.indexOf(".amazon"));
-        String key = location.substring(location.indexOf(".com/"));
-        return Map.of("bucketName", bucketName, "region", region, "key", key);
+//        String bucketName = location.substring(location.indexOf("//"), location.indexOf(".s3"));
+//        String region = location.substring(location.indexOf("s3."), location.indexOf(".amazon"));
+        String key = location.split(".com/")[1];
+//        return Map.of("bucketName", bucketName, "region", region, "key", key);
+        return Map.of("key", key);
     }
 }

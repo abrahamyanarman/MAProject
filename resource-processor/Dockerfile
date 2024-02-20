@@ -14,6 +14,6 @@ WORKDIR /app
 
 COPY --from=builder /app/target/*.jar app.jar
 
-EXPOSE 6081
+EXPOSE 6086
 
 CMD ["java", "-jar", "app.jar"]

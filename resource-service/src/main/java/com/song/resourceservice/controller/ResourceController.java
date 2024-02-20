@@ -25,7 +25,7 @@ import java.util.Map;
 import java.util.Optional;
 
 @RestController
-@RequestMapping("resources")
+@RequestMapping("/resources")
 public class ResourceController {
 
     private static final Logger logger = LoggerFactory.getLogger(ResourceController.class);
@@ -67,6 +67,16 @@ public class ResourceController {
         if (resourceOptional.isPresent()) {
             Resource resource = resourceOptional.get();
             return ResponseEntity.ok(Map.of("id", resource.getId(), "locaion", resource.getLocation()));
+        } else {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    @GetMapping("/data/{id}")
+    public ResponseEntity<Map<String, Object>> getResourceData(@PathVariable Long id) {
+        byte[] data = resourceService.getResourceDataById(id);
+        if (data != null) {
+            return ResponseEntity.ok(Map.of("resourceData", data));
         } else {
             return ResponseEntity.notFound().build();
         }

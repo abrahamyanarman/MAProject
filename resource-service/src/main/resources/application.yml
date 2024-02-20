@@ -1,5 +1,5 @@
 server:
-  port: 8082
+  port: 6082
 spring:
   application:
     name: resource-service
@@ -20,7 +20,21 @@ spring:
     multipart:
       max-file-size: 50MB
       max-request-size: 50MB
-
+  kafka:
+    bootstrap-servers: kafka:9092
+    producer:
+      retries: 3
+      properties:
+        enable.idempotence: true
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      auto-offset-reset: latest
+      enable-auto-commit: true
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "*"
 eureka:
   client:
     service-url:

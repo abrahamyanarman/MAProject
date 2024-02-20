@@ -2,33 +2,28 @@ package com.song.resourceservice.service.impl;
 
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
+import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
-import com.amazonaws.services.s3.model.PutObjectResult;
+import com.amazonaws.services.s3.model.S3Object;
 import com.song.resourceservice.S3Utils;
-import com.song.resourceservice.client.SongServiceClient;
-import com.song.resourceservice.dto.SongDTO;
 import com.song.resourceservice.entity.Resource;
 import com.song.resourceservice.repository.ResourceRepository;
 import com.song.resourceservice.service.ResourceService;
 import jakarta.annotation.PostConstruct;
-import org.apache.commons.lang.StringUtils;
-import org.apache.tika.metadata.Metadata;
-import org.apache.tika.parser.ParseContext;
-import org.apache.tika.parser.Parser;
-import org.apache.tika.sax.BodyContentHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.ResponseEntity;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
 
 @Service
 public class ResourceServiceImpl implements ResourceService {
@@ -37,6 +32,8 @@ public class ResourceServiceImpl implements ResourceService {
     private final static String BUCKET_NAME = "resources";
     private final ResourceRepository resourceRepository;
     private AmazonS3 amazonS3;
+    @Autowired
+    private KafkaTemplate<String, Map<String, Long>> kafkaTemplate;
     @Value("${cloud.aws.region.static}")
     private String region;
 
@@ -72,6 +69,7 @@ public class ResourceServiceImpl implements ResourceService {
 
             if (resource.getId() != null) {
                 logger.info("{}: Resource with id: {}, location: {} saved", ResourceServiceImpl.class.getSimpleName(), resource.getId(), resource.getLocation());
+                kafkaTemplate.send("resourceUploaded", Map.of("resourceId", resource.getId()));
                 return resource.getId();
             } else {
                 logger.info("{}: Something went wrong saving resource with id: {}", ResourceServiceImpl.class.getSimpleName(), resource.getId());
@@ -86,6 +84,24 @@ public class ResourceServiceImpl implements ResourceService {
     @Override
     public Optional<Resource> getResourceById(Long id) {
         return resourceRepository.findById(id);
+    }
+
+    @Override
+    public byte[] getResourceDataById(Long id) {
+        Optional<Resource> resourceOptional = getResourceById(id);
+        if (resourceOptional.isPresent()) {
+            Resource resource = resourceOptional.get();
+            Map<String, String> props = S3Utils.deconstructS3Location(resource.getLocation());
+            GetObjectRequest getObjectRequest = new GetObjectRequest(BUCKET_NAME, props.get("key"));
+            S3Object object = amazonS3.getObject(getObjectRequest);
+            try {
+                return object.getObjectContent().readAllBytes();
+            } catch (IOException e) {
+                throw new RuntimeException(e); // TODO add error handling
+            }
+
+        }
+        return new byte[]{}; // TODO need refactoring
     }
 
     @Override

@@ -1,5 +1,50 @@
 version: '3.9'
 services:
+  zookeeper:
+    container_name: zookeeper
+    image: wurstmeister/zookeeper
+    ports:
+      - "2181:2181"
+    networks:
+      - masp
+  kafka:
+    image: confluentinc/cp-server:7.1.2
+    hostname: kafka
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9093:9093"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_CONFLUENT_LICENSE_TOPIC_REPLICATION_FACTOR: 1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - masp
+  kafka-ui:
+    image: provectuslabs/kafka-ui
+    container_name: kafka-ui
+    ports:
+      - "8090:8080"
+    restart: always
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: PLAINTEXT://kafka:9092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 3s
+        max_attempts: 3
+        window: 15s
+    networks:
+      - masp
   localstack:
     container_name: "${LOCALSTACK_DOCKER_NAME:-localstack-main}"
     image: localstack/localstack
@@ -15,6 +60,7 @@ services:
     networks:
       - masp
   config-server:
+    container_name: config-server
     build:
       context: ./config-server
       dockerfile: Dockerfile
@@ -26,22 +72,24 @@ services:
       - "8888:8888"
     healthcheck:
       test: "curl --fail --silent localhost:8888/actuator/health/readiness | grep UP || exit 1"
-      interval: 4s
-      timeout: 10s
-      retries: 10
-      start_period: 2s
-#  postgress-song-service-db:
-#    image: postgres:latest
-#    env_file:
-#      - ./postgress-song-service-db.env
-#    networks:
-#      - masp
-#    volumes:
-#      - ./song-service/scripts/schema.sql:/docker-entrypoint-initdb.d/1_schema.sql
-#      - ./song-service/scripts/data.sql:/docker-entrypoint-initdb.d/2_data.sql
-#    ports:
-#      - "5432:5432"
+      interval: 3s
+      timeout: 2s
+      retries: 20
+      start_period: 3s
+  postgress-song-service-db:
+    container_name: postgress-song-service-db
+    image: postgres:latest
+    env_file:
+      - ./postgress-song-service-db.env
+    networks:
+      - masp
+    volumes:
+      - ./song-service/scripts/schema.sql:/docker-entrypoint-initdb.d/1_schema.sql
+      - ./song-service/scripts/data.sql:/docker-entrypoint-initdb.d/2_data.sql
+    ports:
+      - "5432:5432"
   postgress-resource-service-db:
+    container_name: postgress-resource-service-db
     image: postgres:latest
     env_file:
       - ./postgress-resource-service-db.env
@@ -53,6 +101,7 @@ services:
     ports:
       - "5433:5432"
   api-gateway:
+    container_name: api-gateway
     build:
       context: ./api-gateway
       dockerfile: Dockerfile
@@ -61,17 +110,18 @@ services:
     env_file:
       - ./api-gateway/api-gateway.env
     ports:
-      - "8080:8080"
+      - "6080:6080"
     depends_on:
       config-server:
         condition: service_healthy
     healthcheck:
-      test: "curl --fail --silent localhost:8080/actuator/health/readiness | grep UP || exit 1"
-      interval: 2s
-      timeout: 3s
-      retries: 5
-      start_period: 2s
+      test: "curl --fail --silent localhost:6080/actuator/health/readiness | grep UP || exit 1"
+      interval: 3s
+      timeout: 2s
+      retries: 20
+      start_period: 3s
   eureka-server:
+    container_name: eureka-server
     build:
       context: ./eureka-server
       dockerfile: Dockerfile
@@ -86,52 +136,74 @@ services:
         condition: service_healthy
     healthcheck:
       test: "curl --fail --silent localhost:8761/actuator/health/readiness | grep UP || exit 1"
-      interval: 2s
-      timeout: 3s
-      retries: 5
-      start_period: 2s
-#  song-service:
-#    build:
-#      context: ./song-service
-#      dockerfile: Dockerfile
-#    env_file:
-#      - ./song-service/song-service.env
-#    networks:
-#      - masp
-#    ports:
-#      - "8081:8081"
-#    healthcheck:
-#      test: "curl --fail --silent localhost:8081/actuator/health/readiness | grep UP || exit 1"
-#      interval: 2s
-#      timeout: 3s
-#      retries: 5
-#      start_period: 2s
-#    depends_on:
-#      config-server:
-#        condition: service_healthy
-#      postgress-song-service-db:
-#        condition: service_started
+      interval: 3s
+      timeout: 2s
+      retries: 20
+      start_period: 3s
+  song-service:
+    container_name: song-service
+    build:
+      context: ./song-service
+      dockerfile: Dockerfile
+    env_file:
+      - ./song-service/song-service.env
+    networks:
+      - masp
+    ports:
+      - "6081:6081"
+    healthcheck:
+      test: "curl --fail --silent localhost:6081/actuator/health/readiness | grep UP || exit 1"
+      interval: 3s
+      timeout: 2s
+      retries: 20
+      start_period: 3s
+    depends_on:
+      config-server:
+        condition: service_healthy
+      postgress-song-service-db:
+        condition: service_started
   resource-service:
+    container_name: resource-service
     build:
       context: ./resource-service
       dockerfile: Dockerfile
     networks:
       - masp
     ports:
-      - "8082:8082"
+      - "6082:6082"
     healthcheck:
-      test: "curl --fail --silent localhost:8082/actuator/health/readiness | grep UP || exit 1"
-      interval: 2s
-      timeout: 3s
-      retries: 5
-      start_period: 2s
+      test: "curl --fail --silent localhost:6082/actuator/health/readiness | grep UP || exit 1"
+      interval: 3s
+      timeout: 2s
+      retries: 30
+      start_period: 3s
     depends_on:
       config-server:
         condition: service_healthy
+#      kafka:
+#        condition: service_started
 #      postgress-song-service-db:
 #        condition: service_started
     env_file:
       - ./resource-service/resource-service.env
+  resource-processor:
+    container_name: resource-processor
+    build:
+      context: ./resource-processor
+      dockerfile: Dockerfile
+    networks:
+      - masp
+    ports:
+      - "6086:6086"
+    depends_on:
+      config-server:
+        condition: service_healthy
+      resource-service:
+        condition: service_healthy
+      song-service:
+        condition: service_healthy
+#      kafka:
+#        condition: service_started
 networks:
   masp:
     
